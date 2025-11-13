@@ -1,0 +1,27 @@
+{
+    "name": "Sophisticated_Root",
+    "children": [
+        {
+            "name": "Analytics Group",
+            "children": [
+                {
+                    "name": "2 Data_Mining",
+                    "size": 3812
+                }
+            ]
+        },
+        {
+            "name": "Visualization Group",
+            "children": [
+                {
+                    "name": "1TreeMap_Layout",
+                    "size": 4500
+                },
+                {
+                    "name": "2 PackedCircle_View",
+                    "size": 6800
+                }
+            ]
+        }
+    ]
+}

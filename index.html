@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spectra Demo (Vibrant Dark)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+      body {
+        font-family: "Inter", sans-serif;
+        /* Rich dark background */
+        background-color: #121212;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+
+      /* --- New Vibrant Tree Styling --- */
+      .node circle {
+        stroke: #374151; /* gray-700 */
+        stroke-width: 2px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .node circle:hover {
+        transform: scale(1.3);
+        stroke-width: 4px;
+      }
+      
+      /* Leaf node: Vibrant Cyan */
+      .node--leaf circle {
+        fill: #06b6d4; /* cyan-500 */
+      }
+      
+      /* Internal node: Deep Indigo */
+      .node--internal circle {
+        fill: #4f46e5; /* indigo-600 */
+      }
+
+      /* Collapsed node: Muted Gray */
+      .node--internal._collapsed circle {
+        fill: #4b5563; /* gray-600 */
+      }
+
+      /* Selected node: Bright Amber/Gold */
+      .node circle.selected-node {
+        fill: #f59e0b; /* amber-500 */
+        stroke: #fef3c7; /* amber-100 */
+        stroke-width: 4px;
+      }
+      .node circle.selected-node:hover {
+        transform: scale(1);
+      }
+
+      .node text {
+        font-size: 14px;
+        font-weight: 600; /* Bolder text */
+        fill: #e5e7eb; /* gray-200 */
+        pointer-events: none;
+        /* Pop text off background/links */
+        text-shadow: 0 0 5px rgba(0,0,0,0.8);
+      }
+
+      .link {
+        fill: none;
+        /* Lighter, more visible links */
+        stroke: #4a4a52; /* zinc-600 */
+        stroke-width: 2px;
+      }
+
+      /* --- UI & Toast Styling --- */
+      .current-tree-name {
+        font-weight: 600;
+        color: #f59e0b; /* amber-400 */
+      }
+
+      #toast-container {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 1000;
+        max-width: 300px;
+      }
+      .toast {
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+        border-radius: 0.5rem;
+        /* Darker toast */
+        background-color: #1f2937; /* gray-800 */
+        border: 1px solid #374151; /* gray-700 */
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        opacity: 0;
+        transition: opacity 0.3s ease, transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+        transform: translateX(100%);
+      }
+      .toast.show {
+        opacity: 1;
+        transform: translateX(0);
+      }
+      
+      /* New toast colors */
+      .toast-success { color: #34d399; } /* emerald-400 */
+      .toast-error { color: #f87171; } /* red-400 */
+      .toast-info { color: #60a5fa; } /* blue-400 */
+    </style>
+  </head>
+  <body class="bg-[#121212] text-gray-200">
+    <header
+      class="flex items-center justify-between p-3 bg-zinc-900 shadow-lg"
+    >
+      <div class="text-xl font-bold text-cyan-400">
+        <i class="fas fa-sitemap mr-2"></i>Spectra Demo
+      </div>
+      <div id="status-bar" class="text-sm">
+        Current Tree:
+        <span id="current-tree-name" class="current-tree-name">Loading...</span>
+        <span id="modified-indicator" class="ml-4 text-red-500 hidden">
+          <i class="fas fa-exclamation-triangle"></i> Unsaved Changes
+        </span>
+      </div>
+      <div class="space-x-2">
+        <button
+          id="save-button"
+          class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 rounded transition-all duration-200 shadow-md font-medium"
+        >
+          <i class="fas fa-save mr-1"></i> Save (Ctrl+S)
+        </button>
+        <button
+          id="add-node-button"
+          class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded transition-all duration-200 shadow-md font-medium"
+        >
+          <i class="fas fa-plus mr-1"></i> Add Node
+        </button>
+      </div>
+    </header>
+
+    <div
+      id="tree-container"
+      class="w-full"
+      style="height: calc(100vh - 56px)"
+    ></div>
+
+    <div id="toast-container"></div>
+
+    <div
+      id="context-menu"
+      class="hidden fixed bg-zinc-800 border border-zinc-700 rounded-md shadow-xl z-50 text-sm"
+    >
+      <button
+        id="context-rename"
+        class="block w-full text-left px-4 py-2 text-gray-200 hover:bg-zinc-700 transition-colors"
+      >
+        <i class="fas fa-edit mr-2 w-4"></i>Rename Node
+      </button>
+      <button
+        id="context-delete"
+        class="block w-full text-left px-4 py-2 text-rose-500 hover:bg-rose-900/50 transition-colors disabled:opacity-50 disabled:text-gray-600 disabled:hover:bg-zinc-800"
+      >
+        <i class="fas fa-trash-alt mr-2 w-4"></i>Delete Node
+      </button>
+    </div>
+
+    <footer
+      class="fixed bottom-0 left-0 w-full bg-zinc-900 p-1 text-xs text-gray-500 flex justify-end"
+    >
+      <span id="group-file-status"
+        >Group: Default_Group | File: Default_File.json</span
+      >
+    </footer>
+
+    <script>
+      // Global variables
+      let root;
+      let tree, svg, g;
+      let width = window.innerWidth;
+      let height = window.innerHeight - 56;
+      const margin = { top: 20, right: 90, bottom: 30, left: 90 };
+      let i = 0; // Node counter
+      let selectedNode = null;
+      let currentGroup = "Default_Group";
+      let currentFile = "Default_File.json";
+      let isModified = false;
+      const transitionDuration = 750;
+      
+      // API base URL
+      const API_URL = "http://localhost:54321/api";
+
+      /**
+       * Shows a non-blocking toast notification.
+       */
+      function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type} flex items-center`;
+
+        let icon = '';
+        if (type === 'success') {
+            icon = '<i class="fas fa-check-circle mr-2"></i>';
+        } else if (type === 'error') {
+            icon = '<i class="fas fa-times-circle mr-2"></i>';
+        } else {
+            icon = '<i class="fas fa-info-circle mr-2"></i>';
+        }
+
+        toast.innerHTML = `${icon}<span>${message}</span>`;
+        container.appendChild(toast);
+
+        setTimeout(() => toast.classList.add('show'), 10);
+        setTimeout(() => {
+          toast.classList.remove('show');
+          setTimeout(() => {
+            if (container.contains(toast)) container.removeChild(toast);
+          }, 300);
+        }, 4000);
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        const treeContainer = d3.select("#tree-container");
+
+        svg = treeContainer
+          .append("svg")
+          .attr("width", width)
+          .attr("height", height);
+        
+        // Background rect for deselection
+        svg.append("rect")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("fill", "none")
+            .style("pointer-events", "all")
+            .on("click", deselectNode); // Left-clicking bg deselects
+
+        g = svg
+          .append("g")
+          .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        tree = d3
+          .tree()
+          .size([
+            height - margin.top - margin.bottom,
+            width - margin.left - margin.right,
+          ]);
+
+        const zoom = d3
+          .zoom()
+          .scaleExtent([0.1, 4])
+          .on("zoom", (event) => g.attr("transform", event.transform));
+        svg.call(zoom);
+
+        // --- UI Event Listeners ---
+        document
+          .getElementById("save-button")
+          .addEventListener("click", saveTree);
+        
+        document.addEventListener("keydown", (e) => {
+          if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            saveTree();
+          }
+        });
+
+        document
+          .getElementById("add-node-button")
+          .addEventListener("click", () => {
+            let parent = selectedNode || root;
+            if (parent) {
+              addNode(parent);
+              if (!selectedNode) {
+                  showToast("No node selected. Adding to root.", 'info');
+              }
+            } else {
+              showToast("Tree not loaded. Cannot add node.", 'error');
+            }
+          });
+
+        // --- Context Menu Listeners ---
+        const contextMenu = document.getElementById('context-menu');
+        
+        document.getElementById('context-rename').addEventListener('click', () => {
+            if (selectedNode) renameNode(selectedNode);
+            hideContextMenu();
+        });
+        
+        document.getElementById('context-delete').addEventListener('click', () => {
+            if (selectedNode) deleteNode(selectedNode);
+            hideContextMenu();
+        });
+        
+        // --- Unsaved Changes Prompt ---
+        window.addEventListener('beforeunload', function (e) {
+            if (isModified) {
+                e.preventDefault(); 
+                e.returnValue = 'You have unsaved changes. Are you sure you want to leave?'; 
+                return 'You have unsaved changes. Are you sure you want to leave?'; 
+            }
+        });
+
+        // --- Core Functions ---
+
+        /**
+         * EDITED: Loads tree data from the server.
+         */
+        function loadTreeData(group, file) {
+          fetch(`${API_URL}/load?group=${group}&file=${file}`)
+          .then(response => {
+              if (!response.ok) {
+                  throw new Error(`HTTP error! Status: ${response.status}`);
+              }
+              return response.json();
+          })
+          .then((data) => {
+              root = d3.hierarchy(data, (d) => d.children);
+              root.x0 = height / 2;
+              root.y0 = 0;
+              if (root.children) root.children.forEach(collapse);
+              update(root);
+              document.getElementById("current-tree-name").textContent = `${file}`;
+              document.getElementById("group-file-status").textContent = `Group: ${group} | File: ${file}`;
+              showToast("Tree data loaded successfully.", 'success');
+              setIsModified(false); // Loaded data is clean
+          })
+          .catch((error) => {
+              console.error("Error loading tree data:", error);
+              document.getElementById("current-tree-name").textContent = "ERROR";
+              showToast(`Failed to load tree data: ${error.message}`, 'error');
+          });
+        }
+
+        /**
+         * EDITED: Saves the tree data to the server.
+         */
+        function saveTree() {
+          if (!root) {
+            showToast("No data to save.", 'error');
+            return;
+          }
+          if (!isModified) {
+            showToast("No changes to save.", 'info');
+            return;
+          }
+
+          // We save root.data, which is the raw JS object
+          const treeDataToSave = root.data; 
+          
+          console.log("Saving data:", treeDataToSave);
+
+          fetch(`${API_URL}/save`, {
+              method: 'PUT',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                  file: currentFile,
+                  group: currentGroup,
+                  treeData: treeDataToSave
+              })
+          })
+          .then(response => response.json())
+          .then(result => {
+              if (result.success) {
+                  showToast(`Save Successful!`, 'success');
+                  setIsModified(false);
+              } else {
+                  throw new Error(result.message || "Unknown save error");
+              }
+          })
+          .catch((error) => {
+              console.error("Save failed:", error);
+              showToast(`Failed to save data: ${error.message}`, 'error');
+          });
+        }
+
+        function setIsModified(modified) {
+          isModified = modified;
+          document
+            .getElementById("modified-indicator")
+            .classList.toggle("hidden", !modified);
+        }
+
+        // --- Context Menu Functions ---
+        function showContextMenu(x, y) {
+            const menu = document.getElementById('context-menu');
+            
+            const deleteBtn = document.getElementById('context-delete');
+            if (!selectedNode || !selectedNode.parent) {
+                deleteBtn.disabled = true;
+                deleteBtn.title = "Cannot delete the root node";
+            } else {
+                deleteBtn.disabled = false;
+                deleteBtn.title = "";
+            }
+            
+            menu.style.left = `${x}px`;
+            menu.style.top = `${y}px`;
+            menu.classList.remove('hidden');
+        }
+
+        function hideContextMenu() {
+            document.getElementById('context-menu').classList.add('hidden');
+        }
+
+        function deselectNode() {
+            hideContextMenu();
+            if (selectedNode && selectedNode.target) {
+                d3.select(selectedNode.target)
+                  .select("circle")
+                  .classed("selected-node", false);
+            }
+            selectedNode = null;
+        }
+
+        // --- D3 Visualization Logic ---
+
+        function update(source) {
+          const treeData = tree(root);
+          const nodes = treeData.descendants();
+          const links = treeData.descendants().slice(1);
+
+          nodes.forEach((d) => (d.y = d.depth * 240)); // Increased spacing
+
+          // ***************** - NODES - *****************
+          const node = g
+            .selectAll("g.node")
+            .data(nodes, (d) => d.id || (d.id = ++i));
+
+          const nodeEnter = node
+            .enter()
+            .append("g")
+            .attr("class", "node")
+            .attr("transform", (d) => `translate(${source.y0},${source.x0})`)
+            .on("click", function(event, d) {
+                event.stopPropagation();
+                hideContextMenu();
+                click(d); // Toggle collapse
+            })
+            .on("contextmenu", function(event, d) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (selectedNode && selectedNode.target) {
+                    d3.select(selectedNode.target).select("circle").classed("selected-node", false);
+                }
+                
+                selectedNode = d;
+                d.target = event.currentTarget; // Store DOM element
+                
+                d3.select(d.target).select("circle").classed("selected-node", true);
+                showContextMenu(event.pageX, event.pageY);
+            });
+
+
+          nodeEnter
+            .append("circle")
+            .attr("r", 1e-6)
+            .attr("class", (d) =>
+              d._children ? "node--internal _collapsed" : d.children ? "node--internal" : "node--leaf"
+            );
+
+          nodeEnter
+            .append("text")
+            .attr("dy", ".35em")
+            .attr("x", (d) => (d.children || d._children ? -13 : 13))
+            .attr("text-anchor", (d) =>
+              d.children || d._children ? "end" : "start"
+            )
+            .text((d) => d.data.name);
+
+          const nodeUpdate = nodeEnter.merge(node);
+          nodeUpdate
+            .transition()
+            .duration(transitionDuration)
+            .attr("transform", (d) => `translate(${d.y},${d.x})`);
+
+          nodeUpdate
+            .select("circle")
+            .attr("r", 9) // Larger radius
+            .attr("class", (d) =>
+              d._children ? "node--internal _collapsed" : d.children ? "node--internal" : "node--leaf"
+            )
+            .classed("selected-node", (d) => d === selectedNode);
+
+          const nodeExit = node
+            .exit()
+            .transition()
+            .duration(transitionDuration)
+            .attr("transform", (d) => `translate(${source.y},${source.x})`)
+            .remove();
+
+          nodeExit.select("circle").attr("r", 1e-6);
+          nodeExit.select("text").style("fill-opacity", 1e-6);
+
+          // ***************** - LINKS - *****************
+          const link = g.selectAll("path.link").data(links, (d) => d.id);
+
+          const linkEnter = link
+            .enter()
+            .insert("path", "g")
+            .attr("class", "link")
+            .attr("d", (d) => {
+              const o = { x: source.x0, y: source.y0 };
+              return diagonal(o, o);
+            });
+
+          const linkUpdate = linkEnter.merge(link);
+          linkUpdate
+            .transition()
+            .duration(transitionDuration)
+            .attr("d", (d) => diagonal(d, d.parent));
+
+          link
+            .exit()
+            .transition()
+            .duration(transitionDuration)
+            .attr("d", (d) => {
+              const o = { x: source.x, y: source.y };
+              return diagonal(o, o);
+            })
+            .remove();
+
+          nodes.forEach((d) => {
+            d.x0 = d.x;
+            d.y0 = d.y;
+          });
+        }
+
+        function diagonal(s, d) {
+          return `M ${s.y} ${s.x}
+            C ${(s.y + d.y) / 2} ${s.x},
+              ${(s.y + d.y) / 2} ${d.x},
+              ${d.y} ${d.x}`;
+        }
+
+        function click(d) {
+          if (d.children) {
+            d._children = d.children;
+            d.children = null;
+          } else {
+            d.children = d._children;
+            d._children = null;
+          }
+          update(d);
+        }
+
+        function collapse(d) {
+          if (d.children) {
+            d._children = d.children;
+            d._children.forEach(collapse);
+            d.children = null;
+          }
+        }
+
+        // --- Node Manipulation Functions ---
+
+        function addNode(parent) {
+          if (!parent) return;
+
+          // Note: The d.id logic relies on the incrementing `i`
+          const newNodeData = { name: `New_Node_${++i}` };
+
+          // If node is collapsed, expand it
+          if (parent._children) {
+            parent.children = parent._children;
+            parent._children = null;
+          }
+          
+          // --- Modify raw data (for saving) ---
+          if (!parent.data.children) parent.data.children = [];
+          parent.data.children.push(newNodeData);
+          
+          // --- Modify D3 hierarchy (for visualization) ---
+          const newD3Node = d3.hierarchy(newNodeData);
+          newD3Node.parent = parent;
+          newD3Node.depth = parent.depth + 1;
+          newD3Node.id = ++i; // Ensure unique ID for D3
+          newD3Node.x0 = parent.x; // Set start pos for animation
+          newD3Node.y0 = parent.y;
+          
+          if (!parent.children) parent.children = [];
+          parent.children.push(newD3Node);
+
+          setIsModified(true);
+          update(parent);
+          showToast(`Added new node to "${parent.data.name}".`, 'info');
+        }
+
+        function renameNode(d) {
+          if (!d || !d.target) {
+            showToast("Error: Invalid node selected.", 'error');
+            return;
+          }
+
+          const currentName = d.data.name;
+          const newName = prompt(
+            `Rename node "${currentName}" to:`,
+            currentName
+          );
+
+          if (
+            newName &&
+            newName.trim() !== currentName &&
+            newName.trim() !== ""
+          ) {
+            const finalName = newName.trim();
+            d.data.name = finalName; // Modify raw data
+            d3.select(d.target).select("text").text(finalName); // Modify visual
+            setIsModified(true);
+            showToast(`Node renamed to "${finalName}".`, 'info');
+          } else if (newName !== null) {
+            showToast("Rename canceled or name invalid.", 'info');
+          }
+        }
+        
+        function deleteNode(d) {
+          if (!d || !d.parent) {
+            showToast("Cannot delete the root node.", 'error');
+            return;
+          }
+          if (
+            !confirm(
+              `Are you sure you want to delete "${d.data.name}"?\nThis will also delete all its children.`
+            )
+          ) {
+            return;
+          }
+
+          const parent = d.parent;
+          
+          // Remove from RAW data
+          if (parent.data.children) {
+            const index = parent.data.children.findIndex(data => data === d.data);
+            if (index > -1) parent.data.children.splice(index, 1);
+          }
+
+          // Remove from D3 hierarchy
+          if (parent.children) {
+            const index = parent.children.findIndex(node => node === d);
+            if (index > -1) {
+              parent.children.splice(index, 1);
+              if (parent.children.length === 0) {
+                 parent.children = null;
+                 parent._children = null;
+              }
+            }
+          }
+          
+          selectedNode = null; 
+          setIsModified(true);
+          update(parent); // Update from the parent
+          showToast(`Node "${d.data.name}" deleted.`, 'info');
+        }
+
+        // --- Initial Load ---
+        loadTreeData(currentGroup, currentFile);
+      });
+    </script>
+  </body>
+</html>

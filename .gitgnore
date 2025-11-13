@@ -1,0 +1,58 @@
+# ------------------------------------
+# Node.js / Express
+# ------------------------------------
+# Dependency directory
+/node_modules
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+.npm
+.eslintcache
+.stylelintcache
+.pnpm-store
+
+# Optional npm cache and environment files
+.env
+.env.development
+.env.production
+
+# Compiled files
+/dist
+/build
+/out
+
+# ------------------------------------
+# Persistent Data (CRITICAL)
+# ------------------------------------
+# Ignore the directory where your server stores the editable tree data.
+# This prevents constant file change notifications from your local edits.
+/tree-data/
+
+# ------------------------------------
+# Operating System & IDE
+# ------------------------------------
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# VS Code
+.vscode/
+
+# JetBrains IDEs (WebStorm, IntelliJ)
+.idea/
+
+# ------------------------------------
+# Tailwind CSS (If you were compiling)
+# ------------------------------------
+# If you run the Tailwind CLI or PostCSS to build a CSS file, ignore the output.
+# You are currently using the CDN, but this is good practice for production.
+/public/css/output.css
+/dist/tailwind.css
