@@ -3,7 +3,7 @@
 
 <!--Spectra image-->
 <div>
-  <img align="right" width="40%" src="https://github.com/user-attachments/assets/37a8b677-c561-45fa-902a-b9e0f2c1d4e1">
+  <img align="right" width="25%" src="https://github.com/user-attachments/assets/0b1803f9-8460-4c83-9ee1-95de4613b9ee">
 </div>
 
 # 🌲 Spectra - Interactive Tree Editor
