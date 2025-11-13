@@ -1,7 +1,5 @@
 <!--Banner-->
-<img width="2000" height="600" alt="Spectra_Cover" src="https://github.com/user-attachments/assets/92f75df9-f9f8-4b13-a8eb-93282cef5ce7" />
-
-
+<img width="2000" height="600" alt="Spectra_Cover" src="https://github.com/user-attachments/assets/602a653d-03f7-4a23-96d4-777f67e0b1c8" />
 
 <!--Spectra image-->
 <div>
